@@ -17,9 +17,9 @@
 (Resampler "DefaultResampler")
 (Transform "AffineTransform")
 
-(ErodeMask "false" )
+(ErodeMask "false")
 
-(NumberOfResolutions 4)
+(NumberOfResolutions 3)
 
 (HowToCombineTransforms "Compose")
 (AutomaticTransformInitialization "true")
