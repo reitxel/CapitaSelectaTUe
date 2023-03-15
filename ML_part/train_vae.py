@@ -83,7 +83,7 @@ valid_dataloader = DataLoader(
 vae_model = vae.VAE() # TODO 
 optimizer = torch.optim.Adam(vae_model.parameters()) # TODO 
 # add a learning rate scheduler based on the lr_lambda function
-scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9) # TODO
+scheduler = lr_lambda(0) #torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9) # TODO
 
 # training loop
 writer = SummaryWriter(log_dir=TENSORBOARD_LOGDIR)  # tensorboard summary

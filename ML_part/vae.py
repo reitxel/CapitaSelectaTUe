@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 l1_loss = torch.nn.L1Loss()
 
@@ -19,9 +20,9 @@ class Block(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(in_ch, out_ch, 3, padding=1)
         self.relu =  nn.LeakyReLU() # TODO  # leaky ReLU
-        self.bn1 = nn.BatchNorm2d(out_ch)# TODO   # batch normalisation
+        self.bn1 = nn.BatchNorm2d(out_ch)# TODO   # batch normalisation or in_ch
         self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_ch ) # TODO out_ch = num_features?
+        self.bn2 = nn.BatchNorm2d(out_ch) # TODO out_ch = num_features?
 
     def forward(self, x):
         """Performs a forward pass of the block
@@ -45,8 +46,6 @@ class Block(nn.Module):
         return x
     
 
-
-
 class Encoder(nn.Module):
     """The encoder part of the VAE.
 
@@ -64,13 +63,13 @@ class Encoder(nn.Module):
         super().__init__()
         # convolutional blocks
         self.enc_blocks = nn.ModuleList(
-            [Block(chs[i], chs[i + 1]) for i in range(len(chs) - 1)]# TODO
+            [Block(chs[i], chs[i + 1]) for i in range(len(chs) - 1)]# TODO = range 0,1,2,3
         )
         
         # max pooling
         self.pool = nn.MaxPool2d(2)# TODO
         # height and width of images at lowest resolution level
-        _h, _w = spatial_size[0], spatial_size[1] # TODO
+        _h, _w = 8, 8 #(int(np.sqrt(spatial_size[0])), int(np.sqrt(spatial_size[0]))) #spatial_size # TODO
 
         # flattening
         self.out = nn.Sequential(nn.Flatten(1), nn.Linear(chs[-1] * _h * _w, 2 * z_dim))
@@ -93,8 +92,8 @@ class Encoder(nn.Module):
         for block in self.enc_blocks:
             x = block(x) # forward pass of block (conv block) # TODO: conv block  
             x = self.pool(x) # TODO: pooling 
-       
-        x = nn.Tanh() # TODO: output layer  
+        x = self.out(x)
+      #  x = nn.Tanh() # TODO: output layer  
         return torch.chunk(x, 2, dim=1)  # 2 chunks, 1 each for mu and logvar
 
 
@@ -132,12 +131,9 @@ class Generator(nn.Module):
         )
 
         self.dec_blocks = nn.ModuleList(
+         #   [nn.Conv2d(chs[i], chs[i+1], 2, 2) for i in range(len(chs)-1)]
             [Block(2 * chs[i], chs[i + 1]) for i in range(len(chs) - 1)] # TODO: conv block           
         )
-        self.proj_o = nn.Sequential(
-            nn.Tanh()
-            # TODO         
-        )  # output layer with Tanh activation
 
     def forward(self, z):
         """Performs the forward pass of decoder
@@ -152,13 +148,19 @@ class Generator(nn.Module):
         x : torch.Tensor
         
         """
-        x = nn.Linear(z, z) # TODO: fully connected layer input: n_features, out_features
-        x = nn.reshape(x, torch.tensor(self.h, self.w))# TODO: reshape to image dimensions
+        # nn.Linear(input_size, dim)
+    #    input_size = self.h*self.w
+        x = self.proj_z(z) # TODO: fully connected layer
+    #    x = nn.Linear(input_size, self.z_dim*self.h*self.w) # TODO: fully connected layer input: n_features, out_features
+        x = self.reshape(x)# TODO: reshape to image dimensions , torch.tensor(self.h, self.w)
+        
         for i in range(len(self.chs) - 1):
-            upconv = self.upconvs(x) # TODO: transposed convolution
-            conv = self.dec_block(upconv) # TODO: convolutional block
-            
-        x = self.proj_o(conv) # TODO: output layer
+            x = self.upconvs[i](x)
+          #  upconv = self.upconvs(x)[i:] # TODO: transposed convolution
+            x = self.dec_blocks[i](x) # TODO: convolutional block
+      
+    #    x = nn.Tanh(nn.ConvTranspose2d(self.chs[-1], 1,2))
+        x = nn.Tanh(nn.Linear(x)) #  self.proj_o(conv) # TODO: output layer
         return x
 
 
@@ -180,6 +182,7 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = Encoder()
         self.generator = Generator()
+        self.head = nn.Sequential( )# tanh activation)
 
     def forward(self, x):
         """Performs a forwards pass of the VAE and returns the reconstruction
