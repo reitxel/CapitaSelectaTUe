@@ -83,7 +83,7 @@ valid_dataloader = DataLoader(
 vae_model = vae.VAE() # TODO 
 optimizer = torch.optim.Adam(vae_model.parameters()) # TODO 
 # add a learning rate scheduler based on the lr_lambda function
-scheduler = lr_lambda(0) #torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9) # TODO
+scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9) # TODO lr_lambda(0) #
 
 # training loop
 writer = SummaryWriter(log_dir=TENSORBOARD_LOGDIR)  # tensorboard summary
@@ -101,10 +101,8 @@ for epoch in range(N_EPOCHS):
         # zero the parameter gradients
         optimizer.zero_grad()
         
-        x_recon = vae_model(inputs) # forward
+        x_recon, mu, logvar = vae_model(inputs) # forward
         # Evaluate loss
-        mu = 1
-        logvar = np.log(mu)
         loss = vae.vae_loss(inputs, x_recon, mu, logvar) # get loss
         
         # Backward pass
@@ -113,13 +111,13 @@ for epoch in range(N_EPOCHS):
         current_train_loss += loss.item()
         optimizer.step() # Update parameters (optimize)
     
-    scheduler.step() # Update learning rate
+   # scheduler.step() # Update learning rate
 
     # evaluate validation loss
     with torch.no_grad():
         vae_model.eval()
         for inputs, x_real in tqdm(valid_dataloader, position=0): # TODO 
-            x_recon = vae_model(inputs) # forward pass
+            x_recon, mu, logvar = vae_model(inputs) # forward pass
             loss = vae.vae_loss(inputs, x_recon, mu, logvar)
             current_valid_loss += loss.item()
             
@@ -142,20 +140,21 @@ for epoch in range(N_EPOCHS):
         
     # TODO: sample noise 
     num_preds = 16
-    noise = vae.get_noise(num_preds, IMAGE_SIZE)
+    noise = vae.get_noise(num_preds, Z_DIM)
+  #  noise = vae.get_noise(num_preds, (64,64))
     
     # TODO: generate images and display
     figure(figsize=(8, 3), dpi=300)
     # Z COMES FROM NORMAL(0, 1)
-    mu = 0
-    std = 1
-    p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(std)) # zero mean and std of one
+
+    p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(logvar)) # zero mean and std of one
     z = p.rsample((num_preds,))
     # SAMPLE IMAGES
     with torch.no_grad():
-        pred = vae.decoder(z.to(vae.device)).cpu()
-    
-    img = make_grid(pred).permute(1, 2, 0).numpy() * std + mu + noise
+   #     pred = vae.VAE(z.to(device)).cpu() 
+        pred = vae.VAE(z).to("cpu")
+    print("prediction",pred)
+    img = make_grid(pred).permute(1, 2, 0).numpy() * logvar + mu + noise
     # PLOT IMAGES
     imshow(img);   
 

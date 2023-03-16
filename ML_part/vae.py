@@ -131,8 +131,8 @@ class Generator(nn.Module):
         )
 
         self.dec_blocks = nn.ModuleList(
-         #   [nn.Conv2d(chs[i], chs[i+1], 2, 2) for i in range(len(chs)-1)]
-            [Block(2 * chs[i], chs[i + 1]) for i in range(len(chs) - 1)] # TODO: conv block           
+            [nn.Conv2d(chs[i], chs[i+1], 2, 2) for i in range(len(chs)-1)]
+          #  [Block(2 * chs[i], chs[i + 1]) for i in range(len(chs) - 1)] # TODO: conv block           
         )
 
     def forward(self, z):
@@ -159,8 +159,8 @@ class Generator(nn.Module):
           #  upconv = self.upconvs(x)[i:] # TODO: transposed convolution
             x = self.dec_blocks[i](x) # TODO: convolutional block
       
-    #    x = nn.Tanh(nn.ConvTranspose2d(self.chs[-1], 1,2))
-        x = nn.Tanh(nn.Linear(x)) #  self.proj_o(conv) # TODO: output layer
+    #    x = nn.Tanh(nn.ConvTranspose2d(self.chs[-1], 16, 1, 2))
+    #    x = nn.Tanh(nn.Linear(x)) #  self.proj_o(conv) # TODO: output layer
         return x
 
 
@@ -182,7 +182,9 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = Encoder()
         self.generator = Generator()
-        self.head = nn.Sequential( )# tanh activation)
+     #   self.head = nn.Sequential(nn.Conv2d(dec_chs[-1], 1, 1,2,1), nn.Tanh())# tanh activation)
+        self.head = nn.Sequential(nn.ConvTranspose2d(dec_chs[-1], 1, 38, 4, 1), nn.Tanh())
+    #    self.head = nn.Sequential(nn.Linear(2048, ))
 
     def forward(self, x):
         """Performs a forwards pass of the VAE and returns the reconstruction
@@ -204,8 +206,11 @@ class VAE(nn.Module):
         """
         mu, logvar = self.encoder(x)
         latent_z = sample_z(mu, logvar)
+        
+        recon = self.generator(latent_z)
+        output = self.head(recon)
 
-        return self.generator(latent_z), mu, logvar
+        return output, mu, logvar
 
 
 def get_noise(n_samples, z_dim, device="cpu"):
@@ -278,4 +283,5 @@ def vae_loss(inputs, recons, mu, logvar):
     float
         sum of reconstruction and KLD loss
     """
+    print(recons.size())
     return l1_loss(inputs, recons) + kld_loss(mu, logvar)
