@@ -139,24 +139,21 @@ for epoch in range(N_EPOCHS):
         )
         
     # TODO: sample noise 
-    num_preds = 16
-    noise = vae.get_noise(num_preds, Z_DIM)
-  #  noise = vae.get_noise(num_preds, (64,64))
-    
-    # TODO: generate images and display
-    figure(figsize=(8, 3), dpi=300)
-    # Z COMES FROM NORMAL(0, 1)
+    num_preds = 10    
+    # Get random noise to generate 10 images from dimension Z_DIM
+    noise = torch.randn(num_preds, Z_DIM)
 
-    p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(logvar)) # zero mean and std of one
-    z = p.rsample((num_preds,))
     # SAMPLE IMAGES
-    with torch.no_grad():
-   #     pred = vae.VAE(z.to(device)).cpu() 
-        pred = vae.VAE(z).to("cpu")
-    print("prediction",pred)
-    img = make_grid(pred).permute(1, 2, 0).numpy() * logvar + mu + noise
-    # PLOT IMAGES
-    imshow(img);   
+    with torch.no_grad():        
+        pred = vae_model.generator(noise)    
+    
+    if (epoch + 1) % DISPLAY_FREQ == 0:
+        img_grid = make_grid(
+            torch.cat((pred[:5], pred[:5])), nrow=5, padding=12, pad_value=-1
+        )
+        writer.add_image(
+            "Real_fake", np.clip(img_grid[0][np.newaxis], -1, 1) / 2 + 0.5, epoch + 1
+        )
 
 torch.save(vae_model.state_dict(), CHECKPOINTS_DIR / "vae_model.pth")
 

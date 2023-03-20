@@ -19,10 +19,10 @@ class Block(nn.Module):
     def __init__(self, in_ch, out_ch):
         super().__init__()
         self.conv1 = nn.Conv2d(in_ch, out_ch, 3, padding=1)
-        self.relu =  nn.LeakyReLU() # TODO  # leaky ReLU
-        self.bn1 = nn.BatchNorm2d(out_ch)# TODO   # batch normalisation or in_ch
+        self.relu =  nn.LeakyReLU() 
+        self.bn1 = nn.BatchNorm2d(out_ch)
         self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_ch) # TODO out_ch = num_features?
+        self.bn2 = nn.BatchNorm2d(out_ch) 
 
     def forward(self, x):
         """Performs a forward pass of the block
@@ -36,10 +36,9 @@ class Block(nn.Module):
         # with ReLU activations
         # use batch normalisation
 
-        # TODO
         x = self.conv1(x)
         x = self.bn1(x)
-        x = self.relu(x)        
+        x = self.relu(x)    
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)
@@ -67,9 +66,9 @@ class Encoder(nn.Module):
         )
         
         # max pooling
-        self.pool = nn.MaxPool2d(2)# TODO
-        # height and width of images at lowest resolution level
-        _h, _w = 8, 8 #(int(np.sqrt(spatial_size[0])), int(np.sqrt(spatial_size[0]))) #spatial_size # TODO
+        self.pool = nn.MaxPool2d(2)
+        # height and width of images at lowest resolution level = spatial_size/nr_conv_layers
+        _h, _w = 8,8 
 
         # flattening
         self.out = nn.Sequential(nn.Flatten(1), nn.Linear(chs[-1] * _h * _w, 2 * z_dim))
@@ -90,14 +89,14 @@ class Encoder(nn.Module):
         """
 
         for block in self.enc_blocks:
-            x = block(x) # forward pass of block (conv block) # TODO: conv block  
-            x = self.pool(x) # TODO: pooling 
+            x = block(x) 
+            x = self.pool(x) 
         x = self.out(x)
-      #  x = nn.Tanh() # TODO: output layer  
+    
         return torch.chunk(x, 2, dim=1)  # 2 chunks, 1 each for mu and logvar
 
 
-class Generator(nn.Module):
+class Generator(nn.Module): # decoder
     """Generator of the GAN
 
     Parameters
@@ -119,6 +118,7 @@ class Generator(nn.Module):
         self.h = h  
         self.w = w  
         self.z_dim = z_dim  
+       
         self.proj_z = nn.Linear(
             self.z_dim, self.chs[0] * self.h * self.w
         )  # fully connected layer on latent space
@@ -131,11 +131,10 @@ class Generator(nn.Module):
         )
 
         self.dec_blocks = nn.ModuleList(
-            [nn.Conv2d(chs[i], chs[i+1], 2, 2) for i in range(len(chs)-1)]
-          #  [Block(2 * chs[i], chs[i + 1]) for i in range(len(chs) - 1)] # TODO: conv block           
+            [nn.Conv2d(chs[i], chs[i+1], 2, 2) for i in range(len(chs)-1)]           
         )
 
-    def forward(self, z):
+    def forward(self, z): # decoder
         """Performs the forward pass of decoder
 
         Parameters
@@ -148,19 +147,12 @@ class Generator(nn.Module):
         x : torch.Tensor
         
         """
-        # nn.Linear(input_size, dim)
-    #    input_size = self.h*self.w
         x = self.proj_z(z) # TODO: fully connected layer
-    #    x = nn.Linear(input_size, self.z_dim*self.h*self.w) # TODO: fully connected layer input: n_features, out_features
         x = self.reshape(x)# TODO: reshape to image dimensions , torch.tensor(self.h, self.w)
         
         for i in range(len(self.chs) - 1):
             x = self.upconvs[i](x)
-          #  upconv = self.upconvs(x)[i:] # TODO: transposed convolution
-            x = self.dec_blocks[i](x) # TODO: convolutional block
-      
-    #    x = nn.Tanh(nn.ConvTranspose2d(self.chs[-1], 16, 1, 2))
-    #    x = nn.Tanh(nn.Linear(x)) #  self.proj_o(conv) # TODO: output layer
+            x = self.dec_blocks[i](x) 
         return x
 
 
@@ -182,9 +174,7 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = Encoder()
         self.generator = Generator()
-     #   self.head = nn.Sequential(nn.Conv2d(dec_chs[-1], 1, 1,2,1), nn.Tanh())# tanh activation)
-        self.head = nn.Sequential(nn.ConvTranspose2d(dec_chs[-1], 1, 38, 4, 1), nn.Tanh())
-    #    self.head = nn.Sequential(nn.Linear(2048, ))
+        self.head = nn.Sequential(nn.ConvTranspose2d(dec_chs[-1], 1, 61, 1, 2), nn.Tanh())     
 
     def forward(self, x):
         """Performs a forwards pass of the VAE and returns the reconstruction
