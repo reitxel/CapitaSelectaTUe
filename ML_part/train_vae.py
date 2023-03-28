@@ -25,7 +25,7 @@ TENSORBOARD_LOGDIR = "vae_runs"
 NO_VALIDATION_PATIENTS = 2
 IMAGE_SIZE = [64, 64]
 BATCH_SIZE = 32
-N_EPOCHS = 200
+N_EPOCHS = 50
 DECAY_LR_AFTER = 50
 LEARNING_RATE = 1e-4
 DISPLAY_FREQ = 10
@@ -119,7 +119,10 @@ for epoch in range(N_EPOCHS):
         for inputs, x_real in tqdm(valid_dataloader, position=0): # TODO 
             x_recon, mu, logvar = vae_model(inputs) # forward pass
             loss = vae.vae_loss(inputs, x_recon, mu, logvar)
-            current_valid_loss += loss.item()
+            if (loss != 0):
+                current_valid_loss += loss.item()
+            else:
+                print("division by zero!")
             
         vae_model.train()
     # write to tensorboard log
