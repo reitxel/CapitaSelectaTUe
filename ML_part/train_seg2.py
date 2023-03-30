@@ -98,6 +98,8 @@ writer = SummaryWriter(log_dir=TENSORBOARD_LOGDIR)  # tensorboard summary
 
 def train_net(config, checkpoint_dir=None, data_dir=None):
     net = unet_model(config["l1"], config["l2"])
+    #net = unet_model()
+
 
     device = "cpu"
     if torch.cuda.is_available():
@@ -106,8 +108,9 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
             net = nn.DataParallel(net)
     net.to(device)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=config["lr"], momentum=0.9)
+
+    loss_function = utils.DiceBCELoss()# TODO 
+    optimizer = optim.Adam(net.parameters(), lr=config["lr"], momentum=0.9)
 
     if checkpoint_dir:
         model_state, optimizer_state = torch.load(
@@ -132,7 +135,7 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
     dataset = utils.ProstateMRDataset(partition["train"], IMAGE_SIZE)
     dataloader = DataLoader(
         dataset,
-        batch_size=int(config["batch_size"]),
+        batch_size=int(BATCH_SIZE),
         shuffle=True,
         drop_last=True,
         pin_memory=True,
@@ -142,7 +145,7 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
     valid_dataset = utils.ProstateMRDataset(partition["validation"], IMAGE_SIZE)
     valid_dataloader = DataLoader(
         valid_dataset,
-        batch_size=int(config["batch_size"]),
+        batch_size=int(BATCH_SIZE),
         shuffle=True,
         drop_last=True,
         pin_memory=True,
@@ -161,7 +164,7 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
 
             # forward + backward + optimize
             outputs = net(inputs)
-            loss = criterion(outputs, labels)
+            loss = loss_function
             loss.backward()
             optimizer.step()
 
@@ -169,9 +172,11 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
             running_loss += loss.item()
             epoch_steps += 1
             if i % 2000 == 1999:  # print every 2000 mini-batches
-                print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1,
-                                                running_loss / epoch_steps))
+                #print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1,running_loss / epoch_steps))
+                print("[%d, %5d] loss: %.3f" % (epoch, i, running_loss / epoch_steps))
+
                 running_loss = 0.0
+                
 
         # Validation loss
         val_loss = 0.0
@@ -188,7 +193,7 @@ def train_net(config, checkpoint_dir=None, data_dir=None):
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-                loss = criterion(outputs, labels)
+                loss = loss_function
                 val_loss += loss.cpu().numpy()
                 val_steps += 1
 
@@ -207,11 +212,14 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     CHECKPOINTS_DIR = Path.cwd() / "segmentation_model_weights"
     CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
     
+    # config = {
+    #     "lr": tune.loguniform(1e-4, 1e-1),
+    # }
+    
     config = {
         "l1": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
         "l2": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
         "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([2, 4, 8, 16])
     }
     
     scheduler = ASHAScheduler(
@@ -232,7 +240,6 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         # parameter_columns=["l1", "l2", "lr", "batch_size"],
         metric_columns=["loss"])
     
-    gpus_per_trial = 2
     result = tune.run(
         partial(train_net, data_dir=data_dir),
         resources_per_trial={"cpu": 2, "gpu": gpus_per_trial},
@@ -246,18 +253,18 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     print("Best trial final validation loss: {}".format(
         best_trial.last_result["loss"]))
 
-    best_trained_model = unet_model(best_trial.config["l1"], best_trial.config["l2"])
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda:0"
-        if gpus_per_trial > 1:
-            best_trained_model = nn.DataParallel(best_trained_model)
-    best_trained_model.to(device)
+    # best_trained_model = unet_model(best_trial.config["l1"], best_trial.config["l2"])
+    # device = "cpu"
+    # if torch.cuda.is_available():
+    #     device = "cuda:0"
+    #     if gpus_per_trial > 1:
+    #         best_trained_model = nn.DataParallel(best_trained_model)
+    # best_trained_model.to(device)
 
-    best_checkpoint_dir = best_trial.checkpoint.value
-    model_state, optimizer_state = torch.load(os.path.join(
-        best_checkpoint_dir, "checkpoint"))
-    best_trained_model.load_state_dict(model_state)
+    # best_checkpoint_dir = best_trial.checkpoint.value
+    # model_state, optimizer_state = torch.load(os.path.join(
+    #     best_checkpoint_dir, "checkpoint"))
+    # best_trained_model.load_state_dict(model_state)
 
 
 if __name__ == "__main__":
