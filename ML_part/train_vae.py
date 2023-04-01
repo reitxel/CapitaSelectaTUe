@@ -3,14 +3,15 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 from tqdm import tqdm
 from matplotlib.pyplot import imshow, figure
-
+from matplotlib import pyplot as plt
 import utils
 import vae
+
 
 # to ensure reproducible training/validation split
 random.seed(42)
@@ -25,7 +26,7 @@ TENSORBOARD_LOGDIR = "vae_runs"
 NO_VALIDATION_PATIENTS = 2
 IMAGE_SIZE = [64, 64]
 BATCH_SIZE = 32
-N_EPOCHS = 50
+N_EPOCHS = 5
 DECAY_LR_AFTER = 50
 LEARNING_RATE = 1e-4
 DISPLAY_FREQ = 10
@@ -53,6 +54,7 @@ patients = [
 ]
 random.shuffle(patients)
 
+
 # split in training/validation after shuffling
 partition = {
     "train": patients[:-NO_VALIDATION_PATIENTS],
@@ -61,16 +63,24 @@ partition = {
 
 # load training data and create DataLoader with batching and shuffling
 dataset = utils.ProstateMRDataset(partition["train"], IMAGE_SIZE)
+img_aug = utils.ProstateMRDataset1(partition["train"], IMAGE_SIZE)
+train_dataset = torch.utils.data.ConcatDataset([dataset, img_aug])
+
 dataloader = DataLoader(
-    dataset,
+    train_dataset,
     batch_size=BATCH_SIZE,
     shuffle=True,
     drop_last=True,
     pin_memory=True,
 )
 
+  
+   
 # load validation data
-valid_dataset = utils.ProstateMRDataset(partition["validation"], IMAGE_SIZE)
+val_dataset = utils.ProstateMRDataset(partition["validation"], IMAGE_SIZE)
+val_img_aug = utils.ProstateMRDataset1(partition["validation"], IMAGE_SIZE)
+valid_dataset = torch.utils.data.ConcatDataset([val_dataset, val_img_aug])
+
 valid_dataloader = DataLoader(
     valid_dataset,
     batch_size=BATCH_SIZE,
@@ -111,7 +121,7 @@ for epoch in range(N_EPOCHS):
         current_train_loss += loss.item()
         optimizer.step() # Update parameters (optimize)
     
-   # scheduler.step() # Update learning rate
+    # scheduler.step() # Update learning rate
 
     # evaluate validation loss
     with torch.no_grad():
@@ -119,10 +129,7 @@ for epoch in range(N_EPOCHS):
         for inputs, x_real in tqdm(valid_dataloader, position=0): # TODO 
             x_recon, mu, logvar = vae_model(inputs) # forward pass
             loss = vae.vae_loss(inputs, x_recon, mu, logvar)
-            if (loss != 0):
-                current_valid_loss += loss.item()
-            else:
-                print("division by zero!")
+            current_valid_loss += loss.item()
             
         vae_model.train()
     # write to tensorboard log
@@ -146,7 +153,7 @@ for epoch in range(N_EPOCHS):
     # Get random noise to generate 10 images from dimension Z_DIM
     noise = torch.randn(num_preds, Z_DIM)
 
-    # SAMPLE IMAGES
+    # # SAMPLE IMAGES
     with torch.no_grad():        
         pred = vae_model.generator(noise)    
     
@@ -159,15 +166,3 @@ for epoch in range(N_EPOCHS):
         )
 
 torch.save(vae_model.state_dict(), CHECKPOINTS_DIR / "vae_model.pth")
-
-
-
-
-
-
-
-
-
-
-
-
