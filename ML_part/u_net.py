@@ -186,4 +186,4 @@ class UNet(nn.Module):
         out = self.decoder(reverse_enc_ftrs[0], reverse_enc_ftrs[1:])
         # last layer ensure output has appropriate number of channels (1)
         out = self.head(out)
-        return out
+        return out 
