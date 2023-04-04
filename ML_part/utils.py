@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 
 class ProstateMRDataset(torch.utils.data.Dataset):
     """Dataset containing prostate MR images.
+
     Parameters
     ----------
     paths : list[Path]
@@ -40,6 +41,7 @@ class ProstateMRDataset(torch.utils.data.Dataset):
                 transforms.ToTensor(),
             ]
         )
+        
         # standardise intensities based on mean and std deviation
         self.train_data_mean = np.mean(self.mr_image_list)
         self.train_data_std = np.std(self.mr_image_list)
@@ -54,6 +56,7 @@ class ProstateMRDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         """Returns the preprocessing MR image and corresponding segementation
         for a given index.
+
         Parameters
         ----------
         index : int
@@ -75,8 +78,9 @@ class ProstateMRDataset(torch.utils.data.Dataset):
             ),
         )
 
-class ProstateMRDataset1(torch.utils.data.Dataset):
+class GeneratedDataset(torch.utils.data.Dataset):
     """Dataset containing prostate MR images.
+
     Parameters
     ----------
     paths : list[Path]
@@ -85,7 +89,7 @@ class ProstateMRDataset1(torch.utils.data.Dataset):
         size of images to be interpolated to
     """
 
-    def __init__(self, paths, img_size):
+    def __init__(self, paths):
         self.mr_image_list = []
         self.mask_list = []
         # load images
@@ -101,16 +105,16 @@ class ProstateMRDataset1(torch.utils.data.Dataset):
         self.no_patients = len(self.mr_image_list)
         self.no_slices = self.mr_image_list[0].shape[0]
 
-        # transforms to augment images
-        self.img_aug = transforms.Compose(
+        # transforms to resize images
+        self.img_transform = transforms.Compose(
             [
                 transforms.ToPILImage(),
                 transforms.CenterCrop(256),
-                transforms.Resize(img_size),
-                transforms.RandomAffine(5.7 ,translate = (0.05,0.05)),
+                transforms.Resize([64,64]),
                 transforms.ToTensor(),
             ]
         )
+        
         # standardise intensities based on mean and std deviation
         self.train_data_mean = np.mean(self.mr_image_list)
         self.train_data_std = np.std(self.mr_image_list)
@@ -125,6 +129,7 @@ class ProstateMRDataset1(torch.utils.data.Dataset):
     def __getitem__(self, index):
         """Returns the preprocessing MR image and corresponding segementation
         for a given index.
+
         Parameters
         ----------
         index : int
@@ -137,18 +142,20 @@ class ProstateMRDataset1(torch.utils.data.Dataset):
 
         return (
             self.norm_transform(
-                self.img_aug(
+                self.img_transform(
                     self.mr_image_list[patient][the_slice, ...].astype(np.float32)
                 )
             ),
-            self.img_aug(
+            self.img_transform(
                 (self.mask_list[patient][the_slice, ...] > 0).astype(np.int32)
             ),
         )
-    
-    
+
+
+
 class DiceBCELoss(nn.Module):
     """Loss function, computed as the sum of Dice score and binary cross-entropy.
+
     Notes
     -----
     This loss assumes that the inputs are logits (i.e., the outputs of a linear layer),
@@ -160,6 +167,7 @@ class DiceBCELoss(nn.Module):
 
     def forward(self, outputs, targets, smooth=1):
         """Calculates segmentation loss for training
+
         Parameters
         ----------
         outputs : torch.Tensor
@@ -168,6 +176,7 @@ class DiceBCELoss(nn.Module):
             ground-truth labels
         smooth : float
             smooth parameter for dice score avoids division by zero, by default 1
+
         Returns
         -------
         float
